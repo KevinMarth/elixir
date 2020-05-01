@@ -57,7 +57,11 @@
 -define(dual_op(T),
   T =:= $+ orelse T =:= $-).
 
+-define(arrow_op4(T1, T2, T3, T4),
+  T1 =:= $|, T2 =:= $>, T3 =:= $>, T4 =:= $=).
+
 -define(arrow_op3(T1, T2, T3),
+  T1 =:= $|, T2 =:= $>, T3 =:= $>;
   T1 =:= $<, T2 =:= $<, T3 =:= $<;
   T1 =:= $>, T2 =:= $>, T3 =:= $>;
   T1 =:= $~, T2 =:= $>, T3 =:= $>;
@@ -291,6 +295,12 @@ tokenize(":%" ++ Rest, Line, Column, Scope, Tokens) ->
 tokenize(":{}" ++ Rest, Line, Column, Scope, Tokens) ->
   tokenize(Rest, Line, Column + 3, Scope, [{atom, {Line, Column, nil}, '{}'} | Tokens]);
 
+% ## Four Token Operators
+tokenize([$:, T1, T2, T3, T4 | Rest], Line, Column, Scope, Tokens) when
+    ?arrow_op4(T1, T2, T3, T4) ->
+  Token = {atom, {Line, Column, nil}, list_to_atom([T1, T2, T3, T4])},
+  tokenize(Rest, Line, Column + 5, Scope, [Token | Tokens]);
+
 % ## Three Token Operators
 tokenize([$:, T1, T2, T3 | Rest], Line, Column, Scope, Tokens) when
     ?unary_op3(T1, T2, T3); ?comp_op3(T1, T2, T3); ?and_op3(T1, T2, T3); ?or_op3(T1, T2, T3);
@@ -323,6 +333,10 @@ tokenize("..." ++ Rest, Line, Column, Scope, Tokens) ->
 tokenize("=>" ++ Rest, Line, Column, Scope, Tokens) ->
   Token = {assoc_op, {Line, Column, previous_was_eol(Tokens)}, '=>'},
   tokenize(Rest, Line, Column + 2, Scope, add_token_with_eol(Token, Tokens));
+
+% ## Four token operators
+tokenize([T1, T2, T3, T4 | Rest], Line, Column, Scope, Tokens) when ?arrow_op4(T1, T2, T3, T4) ->
+  handle_op(Rest, Line, Column, arrow_op, 4, list_to_atom([T1, T2, T3, T4]), Scope, Tokens);
 
 % ## Three token operators
 tokenize([T1, T2, T3 | Rest], Line, Column, Scope, Tokens) when ?unary_op3(T1, T2, T3) ->
@@ -737,6 +751,11 @@ handle_op(Rest, Line, Column, Kind, Length, Op, Scope, Tokens) ->
       Token = {Kind, {Line, Column, previous_was_eol(Tokens)}, Op},
       tokenize(Remaining, Line, Column + Length + Extra, Scope, add_token_with_eol(Token, Tokens))
   end.
+
+% ## Four Token Operators
+handle_dot([$., T1, T2, T3, T4 | Rest], Line, Column, DotInfo, Scope, Tokens) when
+    ?arrow_op4(T1, T2, T3, T4) ->
+  handle_call_identifier(Rest, Line, Column, DotInfo, 4, list_to_atom([T1, T2, T3, T4]), Scope, Tokens);
 
 % ## Three Token Operators
 handle_dot([$., T1, T2, T3 | Rest], Line, Column, DotInfo, Scope, Tokens) when
